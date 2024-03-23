@@ -76,19 +76,27 @@ abstract class WorkerAbstract extends ActionAbstract implements LifecycleInterfa
             throw new ConfigurationException('Provided an invalid worker connection');
         }
 
-        $response = $client->execute($context->getAction()->getName(), $execute);
+        $response = $client->execute($context->getAction()?->getName() ?? '', $execute);
 
         $events = $response->getEvents();
-        if (!empty($events)) {
+        if ($events !== null) {
             foreach ($events as $event) {
-                $this->dispatcher->dispatch($event->getEventName(), $event->getData());
+                $eventName = $event->getEventName();
+                $data = $event->getData();
+                if ($eventName !== null && $data !== null) {
+                    $this->dispatcher->dispatch($eventName, $data);
+                }
             }
         }
 
         $logs = $response->getLogs();
-        if (!empty($logs)) {
+        if ($logs !== null) {
             foreach ($logs as $log) {
-                $this->logger->log($log->getLevel(), $log->getMessage());
+                $level = $log->getLevel();
+                $message = $log->getMessage();
+                if ($level !== null && $message !== null) {
+                    $this->logger->log($level, $message);
+                }
             }
         }
 
@@ -145,7 +153,7 @@ abstract class WorkerAbstract extends ActionAbstract implements LifecycleInterfa
         }
 
         $apiVersion = $connection->get()->getApiVersion();
-        if (empty($apiVersion)) {
+        if ($apiVersion === null) {
             return false;
         }
 
@@ -180,7 +188,7 @@ abstract class WorkerAbstract extends ActionAbstract implements LifecycleInterfa
         $return = new ExecuteRequestContext();
         $return->setType(ClassName::serialize($requestContext::class));
         if ($requestContext instanceof HttpRequestContext) {
-            $return->setUriFragments($requestContext->getParameters());
+            $return->setUriFragments(Record::fromArray($requestContext->getParameters()));
             $return->setMethod($requestContext->getRequest()->getMethod());
             $return->setPath($requestContext->getRequest()->getUri()->getPath());
             $return->setQueryParameters(Record::fromArray($requestContext->getRequest()->getUri()->getParameters()));
@@ -192,6 +200,7 @@ abstract class WorkerAbstract extends ActionAbstract implements LifecycleInterfa
 
     private function getRequestHeaders(\PSX\Http\RequestInterface $request): Record
     {
+        /** @var Record<string> $headers */
         $headers = new Record();
         foreach ($request->getHeaders() as $key => $values) {
             $headers->put($key, implode(', ', $values));
@@ -206,7 +215,7 @@ abstract class WorkerAbstract extends ActionAbstract implements LifecycleInterfa
         $return->setOperationId($context->getOperationId());
         $return->setBaseUrl($context->getBaseUrl());
         $return->setTenantId($context->getTenantId());
-        $return->setAction($context->getAction());
+        $return->setAction($context->getAction()?->getName());
         $return->setApp($this->getApp($context->getApp()));
         $return->setUser($this->getUser($context->getUser()));
 
