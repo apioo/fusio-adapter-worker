@@ -20,7 +20,6 @@
 
 namespace Fusio\Adapter\Worker\Action;
 
-use Doctrine\DBAL\Connection;
 use Fusio\Engine\Action\RuntimeInterface;
 use Fusio\Engine\ActionAbstract;
 use Fusio\Engine\Connection\LifecycleInterface;
@@ -33,6 +32,7 @@ use Fusio\Engine\Inflection\ClassName;
 use Fusio\Engine\Model\AppInterface;
 use Fusio\Engine\Model\UserInterface;
 use Fusio\Engine\ParametersInterface;
+use Fusio\Engine\Repository;
 use Fusio\Engine\Request\HttpRequestContext;
 use Fusio\Engine\Request\RequestContextInterface;
 use Fusio\Engine\RequestInterface;
@@ -55,13 +55,13 @@ use PSX\Record\Record;
  */
 abstract class WorkerAbstract extends ActionAbstract implements LifecycleInterface, PingableInterface
 {
-    private Connection $connection;
+    private Repository\ConnectionInterface $connectionRepository;
 
-    public function __construct(RuntimeInterface $runtime, Connection $connection)
+    public function __construct(RuntimeInterface $runtime, Repository\ConnectionInterface $connectionRepository)
     {
         parent::__construct($runtime);
 
-        $this->connection = $connection;
+        $this->connectionRepository = $connectionRepository;
     }
 
     public function handle(RequestInterface $request, ParametersInterface $configuration, ContextInterface $context): mixed
@@ -164,13 +164,13 @@ abstract class WorkerAbstract extends ActionAbstract implements LifecycleInterfa
 
     private function getConnections(): array
     {
-        $connections = [];
-        $result = $this->connection->fetchAllAssociative('SELECT name, config FROM fusio_connection WHERE status = 0');
-        foreach ($result as $row) {
-            $connections[$row['name']] = $row['config'];
+        $result = [];
+        $connections = $this->connectionRepository->getAll();
+        foreach ($connections as $connection) {
+            $result[$connection->getName()] = \base64_encode(\json_encode($connection->getConfig()));
         }
 
-        return $connections;
+        return $result;
     }
 
     private function getRequest(RequestInterface $request): ExecuteRequest
