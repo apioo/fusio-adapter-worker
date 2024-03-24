@@ -38,6 +38,7 @@ use Fusio\Engine\Request\RequestContextInterface;
 use Fusio\Engine\RequestInterface;
 use Fusio\Worker\Client;
 use Fusio\Worker\Execute;
+use Fusio\Worker\ExecuteConnection;
 use Fusio\Worker\ExecuteContext;
 use Fusio\Worker\ExecuteContextApp;
 use Fusio\Worker\ExecuteContextUser;
@@ -67,7 +68,7 @@ abstract class WorkerAbstract extends ActionAbstract implements LifecycleInterfa
     public function handle(RequestInterface $request, ParametersInterface $configuration, ContextInterface $context): mixed
     {
         $execute = new Execute();
-        $execute->setConnections(Record::fromArray($this->getConnections()));
+        $execute->setConnections($this->getConnections());
         $execute->setRequest($this->getRequest($request));
         $execute->setContext($this->getContext($context));
 
@@ -89,6 +90,7 @@ abstract class WorkerAbstract extends ActionAbstract implements LifecycleInterfa
             }
         }
 
+
         $logs = $response->getLogs();
         if ($logs !== null) {
             foreach ($logs as $log) {
@@ -100,10 +102,12 @@ abstract class WorkerAbstract extends ActionAbstract implements LifecycleInterfa
             }
         }
 
+        $httpResponse = $response->getResponse();
+
         return $this->response->build(
-            $response->getStatusCode() ?? 200,
-                $response->getHeaders()?->getAll() ?? [],
-                $response->getBody()
+            $httpResponse?->getStatusCode() ?? 200,
+                $httpResponse?->getHeaders()?->getAll() ?? [],
+                $httpResponse?->getBody()
         );
     }
 
@@ -162,12 +166,18 @@ abstract class WorkerAbstract extends ActionAbstract implements LifecycleInterfa
 
     abstract protected function getLanguage(): string;
 
-    private function getConnections(): array
+    private function getConnections(): Record
     {
-        $result = [];
+        /** @var Record<ExecuteConnection> $result */
+        $result = new Record();
+
         $connections = $this->connectionRepository->getAll();
         foreach ($connections as $connection) {
-            $result[$connection->getName()] = \base64_encode(\json_encode($connection->getConfig()));
+            $con = new ExecuteConnection();
+            $con->setType(ClassName::serialize($connection->getClass()));
+            $con->setConfig(\base64_encode(\json_encode($connection->getConfig())));
+
+            $result->put($connection->getName(), $con);
         }
 
         return $result;
