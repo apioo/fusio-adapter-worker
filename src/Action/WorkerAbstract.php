@@ -20,9 +20,9 @@
 
 namespace Fusio\Adapter\Worker\Action;
 
+use Fusio\Engine\Action\LifecycleInterface;
 use Fusio\Engine\Action\RuntimeInterface;
 use Fusio\Engine\ActionAbstract;
-use Fusio\Engine\Connection\LifecycleInterface;
 use Fusio\Engine\Connection\PingableInterface;
 use Fusio\Engine\ContextInterface;
 use Fusio\Engine\Exception\ConfigurationException;
@@ -106,8 +106,8 @@ abstract class WorkerAbstract extends ActionAbstract implements LifecycleInterfa
 
         return $this->response->build(
             $httpResponse?->getStatusCode() ?? 200,
-                $httpResponse?->getHeaders()?->getAll() ?? [],
-                $httpResponse?->getBody()
+            $httpResponse?->getHeaders()?->getAll() ?? [],
+            $httpResponse?->getBody()
         );
     }
 
@@ -117,8 +117,9 @@ abstract class WorkerAbstract extends ActionAbstract implements LifecycleInterfa
         $builder->add($elementFactory->newTextArea('code', 'Code', $this->getLanguage(), ''));
     }
 
-    public function onCreate(string $name, ParametersInterface $config, mixed $connection): void
+    public function onCreate(string $name, ParametersInterface $config): void
     {
+        $connection = $this->connector->getConnection($config->get('worker'));
         if (!$connection instanceof Client) {
             return;
         }
@@ -129,8 +130,9 @@ abstract class WorkerAbstract extends ActionAbstract implements LifecycleInterfa
         $connection->put($name, $update);
     }
 
-    public function onUpdate(string $name, ParametersInterface $config, mixed $connection): void
+    public function onUpdate(string $name, ParametersInterface $config): void
     {
+        $connection = $this->connector->getConnection($config->get('worker'));
         if (!$connection instanceof Client) {
             return;
         }
@@ -141,8 +143,9 @@ abstract class WorkerAbstract extends ActionAbstract implements LifecycleInterfa
         $connection->put($name, $update);
     }
 
-    public function onDelete(string $name, ParametersInterface $config, mixed $connection): void
+    public function onDelete(string $name, ParametersInterface $config): void
     {
+        $connection = $this->connector->getConnection($config->get('worker'));
         if (!$connection instanceof Client) {
             return;
         }
@@ -175,7 +178,7 @@ abstract class WorkerAbstract extends ActionAbstract implements LifecycleInterfa
         foreach ($connections as $connection) {
             $con = new ExecuteConnection();
             $con->setType(ClassName::serialize($connection->getClass()));
-            $con->setConfig(\base64_encode(\json_encode($connection->getConfig())));
+            $con->setConfig(\base64_encode(\json_encode((object) $connection->getConfig())));
 
             $result->put($connection->getName(), $con);
         }
