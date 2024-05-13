@@ -28,24 +28,11 @@ use Fusio\Engine\ContextInterface;
 use Fusio\Engine\Exception\ConfigurationException;
 use Fusio\Engine\Form\BuilderInterface;
 use Fusio\Engine\Form\ElementFactoryInterface;
-use Fusio\Engine\Inflection\ClassName;
-use Fusio\Engine\Model\AppInterface;
-use Fusio\Engine\Model\UserInterface;
 use Fusio\Engine\ParametersInterface;
-use Fusio\Engine\Repository;
-use Fusio\Engine\Request\HttpRequestContext;
-use Fusio\Engine\Request\RequestContextInterface;
 use Fusio\Engine\RequestInterface;
+use Fusio\Engine\Worker\ExecuteBuilderInterface;
 use Fusio\Worker\Client;
-use Fusio\Worker\Execute;
-use Fusio\Worker\ExecuteConnection;
-use Fusio\Worker\ExecuteContext;
-use Fusio\Worker\ExecuteContextApp;
-use Fusio\Worker\ExecuteContextUser;
-use Fusio\Worker\ExecuteRequest;
-use Fusio\Worker\ExecuteRequestContext;
 use Fusio\Worker\Update;
-use PSX\Record\Record;
 
 /**
  * WorkerAbstract
@@ -56,28 +43,23 @@ use PSX\Record\Record;
  */
 abstract class WorkerAbstract extends ActionAbstract implements LifecycleInterface, PingableInterface
 {
-    private Repository\ConnectionInterface $connectionRepository;
+    private ExecuteBuilderInterface $executeBuilder;
 
-    public function __construct(RuntimeInterface $runtime, Repository\ConnectionInterface $connectionRepository)
+    public function __construct(RuntimeInterface $runtime, ExecuteBuilderInterface $executeBuilder)
     {
         parent::__construct($runtime);
 
-        $this->connectionRepository = $connectionRepository;
+        $this->executeBuilder = $executeBuilder;
     }
 
     public function handle(RequestInterface $request, ParametersInterface $configuration, ContextInterface $context): mixed
     {
-        $execute = new Execute();
-        $execute->setConnections($this->getConnections());
-        $execute->setRequest($this->getRequest($request));
-        $execute->setContext($this->getContext($context));
-
         $client = $this->connector->getConnection($configuration->get('worker'));
         if (!$client instanceof Client) {
             throw new ConfigurationException('Provided an invalid worker connection');
         }
 
-        $response = $client->execute($context->getAction()?->getName() ?? '', $execute);
+        $response = $client->execute($context->getAction()?->getName() ?? '', $this->executeBuilder->build($request, $context));
 
         $events = $response->getEvents();
         if ($events !== null) {
@@ -168,93 +150,4 @@ abstract class WorkerAbstract extends ActionAbstract implements LifecycleInterfa
     }
 
     abstract protected function getLanguage(): string;
-
-    private function getConnections(): Record
-    {
-        /** @var Record<ExecuteConnection> $result */
-        $result = new Record();
-
-        $connections = $this->connectionRepository->getAll();
-        foreach ($connections as $connection) {
-            $con = new ExecuteConnection();
-            $con->setType(ClassName::serialize($connection->getClass()));
-            $con->setConfig(\base64_encode(\json_encode((object) $connection->getConfig())));
-
-            $result->put($connection->getName(), $con);
-        }
-
-        return $result;
-    }
-
-    private function getRequest(RequestInterface $request): ExecuteRequest
-    {
-        $return = new ExecuteRequest();
-        $return->setArguments(Record::fromArray($request->getArguments()));
-        $return->setPayload($request->getPayload());
-        $return->setContext($this->getRequestContext($request->getContext()));
-
-        return $return;
-    }
-
-    private function getRequestContext(RequestContextInterface $requestContext): ExecuteRequestContext
-    {
-        $return = new ExecuteRequestContext();
-        $return->setType(ClassName::serialize($requestContext::class));
-        if ($requestContext instanceof HttpRequestContext) {
-            $return->setUriFragments(Record::fromArray($requestContext->getParameters()));
-            $return->setMethod($requestContext->getRequest()->getMethod());
-            $return->setPath($requestContext->getRequest()->getUri()->getPath());
-            $return->setQueryParameters(Record::fromArray($requestContext->getRequest()->getUri()->getParameters()));
-            $return->setHeaders($this->getRequestHeaders($requestContext->getRequest()));
-        }
-
-        return $return;
-    }
-
-    private function getRequestHeaders(\PSX\Http\RequestInterface $request): Record
-    {
-        /** @var Record<string> $headers */
-        $headers = new Record();
-        foreach ($request->getHeaders() as $key => $values) {
-            $headers->put($key, implode(', ', $values));
-        }
-
-        return $headers;
-    }
-
-    private function getContext(ContextInterface $context): ExecuteContext
-    {
-        $return = new ExecuteContext();
-        $return->setOperationId($context->getOperationId());
-        $return->setBaseUrl($context->getBaseUrl());
-        $return->setTenantId($context->getTenantId());
-        $return->setAction($context->getAction()?->getName());
-        $return->setApp($this->getApp($context->getApp()));
-        $return->setUser($this->getUser($context->getUser()));
-
-        return $return;
-    }
-
-    private function getApp(AppInterface $app): ExecuteContextApp
-    {
-        $return = new ExecuteContextApp();
-        $return->setAnonymous($app->isAnonymous());
-        $return->setId($app->getId());
-        $return->setName($app->getName());
-
-        return $return;
-    }
-
-    private function getUser(UserInterface $user): ExecuteContextUser
-    {
-        $return = new ExecuteContextUser();
-        $return->setAnonymous($user->isAnonymous());
-        $return->setId($user->getId());
-        $return->setPlanId($user->getPlanId());
-        $return->setName($user->getName());
-        $return->setEmail($user->getEmail());
-        $return->setPoints($user->getPoints());
-
-        return $return;
-    }
 }
