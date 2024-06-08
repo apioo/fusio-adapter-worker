@@ -21,7 +21,7 @@
 namespace Fusio\Adapter\Worker\Action;
 
 /**
- * JavaWorker
+ * WorkerJava
  *
  * @author  Christoph Kappestein <christoph.kappestein@gmail.com>
  * @license http://www.apache.org/licenses/LICENSE-2.0

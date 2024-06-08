@@ -21,7 +21,7 @@
 namespace Fusio\Adapter\Worker\Action;
 
 /**
- * PHPWorker
+ * WorkerPHP
  *
  * @author  Christoph Kappestein <christoph.kappestein@gmail.com>
  * @license http://www.apache.org/licenses/LICENSE-2.0
