@@ -59,7 +59,7 @@ class WorkerPHPLocal extends ActionAbstract implements LifecycleInterface, Confi
     public function handle(RequestInterface $request, ParametersInterface $configuration, ContextInterface $context): HttpResponseInterface
     {
         $action = $context->getAction()?->getName();
-        if (empty($action)) {
+        if ($action === null || $action === '') {
             throw new \RuntimeException('No action name available');
         }
 
