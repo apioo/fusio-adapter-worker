@@ -32,6 +32,7 @@ use Fusio\Engine\ParametersInterface;
 use Fusio\Engine\RequestInterface;
 use Fusio\Engine\Worker\ExecuteBuilderInterface;
 use PSX\Http\Environment\HttpResponseInterface;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 /**
  * WorkerPHPLocal
@@ -43,12 +44,14 @@ use PSX\Http\Environment\HttpResponseInterface;
 class WorkerPHPLocal extends ActionAbstract implements LifecycleInterface, ConfigurableInterface
 {
     private ExecuteBuilderInterface $executeBuilder;
+    private string $basePath;
 
-    public function __construct(RuntimeInterface $runtime, ExecuteBuilderInterface $executeBuilder)
+    public function __construct(RuntimeInterface $runtime, ExecuteBuilderInterface $executeBuilder, #[Autowire(param: 'psx_path_cache')] string $basePath)
     {
         parent::__construct($runtime);
 
         $this->executeBuilder = $executeBuilder;
+        $this->basePath = $basePath;
     }
 
     public function getName(): string
@@ -121,12 +124,10 @@ class WorkerPHPLocal extends ActionAbstract implements LifecycleInterface, Confi
 
     private function getActionFile(string $name): string
     {
-        if (defined('PSX_PATH_CACHE')) {
-            $basePath = PSX_PATH_CACHE;
-        } else {
-            $basePath = sys_get_temp_dir();
+        if (empty($this->basePath)) {
+            throw new \RuntimeException('No base path provided');
         }
 
-        return $basePath . '/php_local_' . substr(md5($name), 0, 8) . '.php';
+        return $this->basePath . '/php_local_' . substr(md5($name), 0, 8) . '.php';
     }
 }
